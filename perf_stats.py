@@ -27,11 +27,20 @@ class PerfStats:
         self._data: Dict[str, Dict[str, List[float]]] = collections.defaultdict(lambda: collections.defaultdict(list))
         self._start_times: Dict[str, float] = {}
         self._lock = threading.Lock()
+        self._enabled = True
         self._initialized = True
 
     @classmethod
     def get_instance(cls):
         return cls()
+
+    def enable(self):
+        """开启统计"""
+        self._enabled = True
+
+    def disable(self):
+        """关闭统计"""
+        self._enabled = False
 
     def init(self):
         """初始化/重置统计数据"""
@@ -43,11 +52,14 @@ class PerfStats:
         """逆初始化，清理资源"""
         self.init()
 
-    def start_record(self, category: str, tag: str) -> str:
+    def start_record(self, category: str, tag: str) -> Optional[str]:
         """
         开始记录耗时
         返回唯一key，用于end_record
         """
+        if not self._enabled:
+            return None
+            
         key = f"{category}::{tag}::{threading.get_ident()}::{time.perf_counter()}"
         with self._lock:
             self._start_times[key] = time.perf_counter()
@@ -60,6 +72,9 @@ class PerfStats:
         否则默认使用category+tag匹配最近的一个开始时间（注意：仅限单线程模型或能保证调用顺序的场景）
         建议始终配合start_record返回的key使用
         """
+        if not self._enabled:
+            return
+
         end_time = time.perf_counter()
         
         with self._lock:
@@ -74,6 +89,9 @@ class PerfStats:
 
     def record_value(self, category: str, tag: str, elapsed_seconds: float):
         """直接记录一个耗时值"""
+        if not self._enabled:
+            return
+            
         with self._lock:
             self._data[category][tag].append(elapsed_seconds)
 
